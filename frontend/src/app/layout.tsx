@@ -1,41 +1,30 @@
-'use client';
-
+import type { Metadata, Viewport } from 'next';
+import { Providers } from './providers';
+import { themeBootScript } from '@/lib/auth';
 import './globals.css';
-import { AuthProvider, useAuth } from '../lib/authContext';
-import { Sidebar } from '../components/Sidebar';
-import { Header } from '../components/Header';
-import { usePathname } from 'next/navigation';
 
-function AppLayoutContent({ children }: { children: React.ReactNode }) {
-  const pathname = usePathname();
-  const isLoginPage = pathname === '/login';
+export const metadata: Metadata = {
+  title: { default: 'Stock Manager', template: '%s · Stock Manager' },
+  description: 'Single-warehouse stock management system',
+};
 
-  if (isLoginPage) {
-    return <main className="min-h-screen bg-gray-50 dark:bg-gray-900">{children}</main>;
-  }
-
-  return (
-    <div className="flex min-h-screen bg-gray-50 dark:bg-gray-950">
-      <Sidebar />
-      <div className="flex-1 flex flex-col min-w-0">
-        <Header />
-        <main className="flex-1 p-6 max-w-7xl w-full mx-auto">{children}</main>
-      </div>
-    </div>
-  );
-}
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  themeColor: [
+    { media: '(prefers-color-scheme: light)', color: '#ffffff' },
+    { media: '(prefers-color-scheme: dark)', color: '#0f172a' },
+  ],
+};
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        <title>Prime Stock - Stock Management System</title>
-        <meta name="description" content="Single warehouse stock management system" />
+        <script dangerouslySetInnerHTML={{ __html: themeBootScript }} />
       </head>
-      <body>
-        <AuthProvider>
-          <AppLayoutContent>{children}</AppLayoutContent>
-        </AuthProvider>
+      <body className="min-h-screen bg-slate-50 font-sans text-slate-900 antialiased dark:bg-slate-950 dark:text-slate-100">
+        <Providers>{children}</Providers>
       </body>
     </html>
   );

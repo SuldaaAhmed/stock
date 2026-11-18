@@ -54,6 +54,12 @@ export function createApp() {
   );
   app.use(cookieParser());
   app.use(express.json({ limit: '1mb' }));
+  // API data (stock balances, statuses) changes without changing a resource's ETag/rowVersion,
+  // so responses must never be served from an HTTP cache. Routes may override (e.g. the logo image).
+  app.use('/api', (_req, res, next) => {
+    res.setHeader('Cache-Control', 'no-store');
+    next();
+  });
 
   // Anonymous, minimal health check (not a business endpoint).
   app.get('/health', async (_req, res) => {
