@@ -5,7 +5,8 @@ export async function dashboardSummary(db: Db) {
   const today = todayNairobi();
   const stock = (
     await db.query(
-      `SELECT count(*) FILTER (WHERE p.status='Active')::int AS active_products,
+      `SELECT count(*)::int AS total_products,
+              count(*) FILTER (WHERE p.status='Active')::int AS active_products,
               count(*) FILTER (WHERE p.status='Active' AND b.available <= p.minimum_stock)::int AS low_stock_products,
               COALESCE(SUM(b.available),0)::int AS total_available, COALESCE(SUM(b.damaged),0)::int AS total_damaged
          FROM products p JOIN product_balances b ON b.product_id = p.id`,
@@ -25,6 +26,23 @@ export async function dashboardSummary(db: Db) {
       [today],
     )
   ).rows[0];
+  const ret = (
+    await db.query(
+      `SELECT count(DISTINCT r.id)::int AS n, COALESCE(SUM(l.quantity),0)::int AS q,
+              COALESCE(SUM(l.quantity) FILTER (WHERE l.condition='Good'),0)::int AS good,
+              COALESCE(SUM(l.quantity) FILTER (WHERE l.condition='Damaged'),0)::int AS damaged
+         FROM returns r JOIN return_lines l ON l.return_id = r.id WHERE r.status='Posted' AND r.business_date = $1`,
+      [today],
+    )
+  ).rows[0];
+  // Low-stock alert list (§4.2 Frontend): active products at or below their minimum; clears automatically once restocked.
+  const lowStockItems = (
+    await db.query(
+      `SELECT p.id, p.name, b.available, p.minimum_stock FROM products p JOIN product_balances b ON b.product_id = p.id
+        WHERE p.status='Active' AND b.available <= p.minimum_stock
+        ORDER BY (p.minimum_stock - b.available) DESC, p.name LIMIT 20`,
+    )
+  ).rows.map((r) => ({ productId: r.id, productName: r.name, currentStock: r.available, minimumStock: r.minimum_stock }));
   const orders = (
     await db.query(
       `SELECT count(*) FILTER (WHERE status='Pending')::int AS pending, count(*) FILTER (WHERE status='PartiallyCompleted')::int AS partial FROM orders`,
@@ -57,6 +75,7 @@ export async function dashboardSummary(db: Db) {
   }));
   return {
     date: today,
+    totalProducts: stock.total_products,
     activeProducts: stock.active_products,
     lowStockProducts: stock.low_stock_products,
     totalAvailableStock: stock.total_available,
@@ -67,7 +86,12 @@ export async function dashboardSummary(db: Db) {
       stockInTransactions: sin.n,
       stockOutQuantity: sout.q,
       stockOutTransactions: sout.n,
+      returnsQuantity: ret.q,
+      returnsTransactions: ret.n,
+      returnsGoodQuantity: ret.good,
+      returnsDamagedQuantity: ret.damaged,
     },
+    lowStockItems,
     orders: { pending: orders.pending, partiallyCompleted: orders.partial },
     recentTransactions,
     recentActivity: recentAudit,
